@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -29,7 +28,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
 import com.letit0or1.kawa.nopong.PongUnit
 import com.letit0or1.kawa.nopong.SIZE
 import com.letit0or1.kawa.nopong.log
@@ -65,19 +63,22 @@ fun PongTable(
 
             }
         }
-
+        if (tableSize.width > 0) {
 //        LEFT
-        Ball(
-            color = Color.Gray,
-            ballSide = 0,
-            state = state
-        )
+            Ball(
+                color = Color.Gray,
+                ballSide = 0,
+                tableSize = tableSize.width,
+                state = state
+            )
 //        RIGHT
-        Ball(
-            color = Color.DarkGray,
-            ballSide = 1,
-            state = state
-        )
+            Ball(
+                color = Color.DarkGray,
+                ballSide = 1,
+                tableSize = tableSize.width,
+                state = state
+            )
+        }
 
     }
 }
@@ -85,73 +86,73 @@ fun PongTable(
 @Composable
 private fun Ball(
     color: Color = Color.Black,
+    tableSize: Int,
     ballSize: Dp = 15.dp,
     ballSide: Int,
     state: List<List<PongUnit>>
 ) {
-    var layoutCoordinates: LayoutCoordinates? by remember { mutableStateOf(null) }
-    val parentSize = layoutCoordinates?.parentLayoutCoordinates?.size?.toSize() ?: Size.Zero
-    var tableSize = parentSize.width
+    var ballLayout: LayoutCoordinates? by remember { mutableStateOf(null) }
 
     var ballOffset by remember {
         mutableStateOf(
             Offset(
                 x = if (ballSide == 0) 0f else 1000f,
-                y = tableSize / 2
+                y = (tableSize / 2).toFloat()
             ),
         )
     }
     var movementVector by remember {
         mutableStateOf(
             Offset(
-                Random.nextFloat(),
-                Random.nextFloat()
+                Random.nextInt(-50, 50).toFloat(),
+                Random.nextInt(-50, 50).toFloat(),
             ).normalize()
         )
     }
-    LaunchedEffect(layoutCoordinates.toString() + ballOffset.toString()) {
+    LaunchedEffect(ballOffset) {
         ballOffset += movementVector.times(10f)
-
+        val ballRect = ballLayout?.boundsInRoot()!!
+        val parentRect = ballLayout?.parentLayoutCoordinates?.boundsInRoot()!!
         var newVector = movementVector.copy()
 
         state.forEachIndexed { x, it ->
             it.forEachIndexed { y, pongUnit ->
-                pongUnit.rect?.takeIf { pongUnit.side.value != ballSide }?.let {
-                    with(it.boundsInRoot()) {
-                        val collision =
-                            detectCollision(layoutCoordinates?.boundsInRoot()!!, this)
-                        newVector = when (collision) {
-                            CollisionDirection.TOP -> newVector.copy(y = -1f)
-                            CollisionDirection.BOTTOM -> newVector.copy(y = 1f)
-                            CollisionDirection.LEFT -> newVector.copy(x = -1f)
-                            CollisionDirection.RIGHT -> newVector.copy(x = 1f)
+                pongUnit.rect().takeIf { pongUnit.side.value != ballSide }?.let { pongUnitRect ->
+                    // Detect collision of the BAll and PontUnit
+                    val collision = detectCollision(ballRect, pongUnitRect)
+                    newVector = when (collision) {
+                        CollisionDirection.TOP -> newVector.copy(y = -1f)
+                        CollisionDirection.BOTTOM -> newVector.copy(y = 1f)
+                        CollisionDirection.LEFT -> newVector.copy(x = -1f)
+                        CollisionDirection.RIGHT -> newVector.copy(x = 1f)
 
-                            CollisionDirection.NONE -> movementVector
-                        }
-                        if (collision != CollisionDirection.NONE) {
-                            log("collision: $collision")
-                            log("before = $movementVector; new= $newVector")
-                            pongUnit.side.value = ballSide
-                            movementVector = newVector
-                            return@forEachIndexed
-                        }
+                        CollisionDirection.NONE -> movementVector
+                    }
+                    if (collision != CollisionDirection.NONE) {
+                        log("collision: $collision")
+                        log("before = $movementVector; new= $newVector")
+                        pongUnit.side.value = ballSide
+                        movementVector = newVector
+                        return@forEachIndexed
                     }
                 }
             }
 
         }
-        if (ballOffset.x < 0) {
-            newVector = newVector.copy(x = 1f)
+// Refactored Collision Detection with Parent Boundaries
+        if (ballRect.left <= parentRect.left) {
+            newVector = newVector.copy(x = 1f) // Bounce right if hitting the left boundary
         }
-        if (ballOffset.x > tableSize) {
-            newVector = newVector.copy(x = -1f)
+        if (ballRect.right >= parentRect.right) {
+            newVector = newVector.copy(x = -1f) // Bounce left if hitting the right boundary
         }
-        if (ballOffset.y > tableSize) {
-            newVector = newVector.copy(y = -1f)
+        if (ballRect.bottom >= parentRect.bottom) {
+            newVector = newVector.copy(y = -1f) // Bounce up if hitting the bottom boundary
         }
-        if (ballOffset.y < 0) {
-            newVector = newVector.copy(y = 1f)
+        if (ballRect.top <= parentRect.top) {
+            newVector = newVector.copy(y = 1f) // Bounce down if hitting the top boundary
         }
+
         movementVector = newVector
     }
     Box(
@@ -163,7 +164,7 @@ private fun Ball(
             .size(ballSize)
             .background(color = color, shape = CircleShape)
             .onGloballyPositioned {
-                layoutCoordinates = it
+                ballLayout = it
             }
     )
 }

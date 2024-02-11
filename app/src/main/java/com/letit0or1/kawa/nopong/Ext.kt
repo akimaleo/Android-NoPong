@@ -7,9 +7,9 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
-import java.util.Vector
 import kotlin.math.sqrt
 
 fun log(message: String) = Log.e("PongTable", message)
@@ -29,7 +29,9 @@ val originalState: Array<Array<MutableState<Int>>>
 data class PongUnit(
     var rect: LayoutCoordinates? = null,
     val side: MutableState<Int>
-)
+) {
+    fun rect() = rect?.boundsInRoot()!!
+}
 
 val Int.toDp get() = (this / Resources.getSystem().displayMetrics.density).toInt()
 
