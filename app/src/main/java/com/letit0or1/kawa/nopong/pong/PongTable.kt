@@ -41,7 +41,8 @@ import kotlin.random.Random
 fun PongTable(
     state: List<List<PongUnit>> = originalState.map {
         it.map { PongUnit(side = it) }
-    }
+    },
+    onCountChange: (Pair<Int, Int>) -> (Unit)
 ) {
     log("PongTable init")
     var tableSize by remember { mutableStateOf(IntSize.Zero) }
@@ -63,20 +64,28 @@ fun PongTable(
 
             }
         }
+        val calculateSide: (Int) -> Int =
+            { side -> state.sumOf { it.filter { it.side.value == side }.size } }
         if (tableSize.width > 0) {
 //        LEFT
             Ball(
                 color = Color.Gray,
                 ballSide = 0,
                 tableSize = tableSize.width,
-                state = state
+                state = state,
+                onHit = {
+                    onCountChange(calculateSide(0) to calculateSide(1))
+                }
             )
 //        RIGHT
             Ball(
                 color = Color.DarkGray,
                 ballSide = 1,
                 tableSize = tableSize.width,
-                state = state
+                state = state,
+                onHit = {
+                    onCountChange(calculateSide(0) to calculateSide(1))
+                }
             )
         }
 
@@ -89,7 +98,8 @@ private fun Ball(
     tableSize: Int,
     ballSize: Dp = 15.dp,
     ballSide: Int,
-    state: List<List<PongUnit>>
+    state: List<List<PongUnit>>,
+    onHit: () -> Unit
 ) {
     var ballLayout: LayoutCoordinates? by remember { mutableStateOf(null) }
 
@@ -110,10 +120,10 @@ private fun Ball(
         )
     }
     LaunchedEffect(ballOffset) {
-        ballOffset += movementVector.times(10f)
+        ballOffset += movementVector.times(20f)
         val ballRect = ballLayout?.boundsInRoot()!!
         val parentRect = ballLayout?.parentLayoutCoordinates?.boundsInRoot()!!
-        var newVector = movementVector.copy()
+        var newVector = movementVector.copy().normalize()
 
         state.forEachIndexed { x, it ->
             it.forEachIndexed { y, pongUnit ->
@@ -132,6 +142,7 @@ private fun Ball(
                         log("collision: $collision")
                         log("before = $movementVector; new= $newVector")
                         pongUnit.side.value = ballSide
+                        onHit()
                         movementVector = newVector
                         return@forEachIndexed
                     }
